@@ -1,0 +1,177 @@
+---
+title: "Compare DEG tools"
+author: "Mark Ziemann"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+theme: cosmo
+---
+
+# Intro
+
+Here the purpose is to demonstrate how the choice of DE tool can impact the results of a study.
+
+## Libraries
+
+```{r,libs}
+library("edgeR")
+library("DESeq2")
+library("eulerr")
+```
+
+## Input data
+
+This is real data from an ATAC-seq experiment.
+I have scrubbed the sample and gene names.
+
+```{r,input}
+x <- read.table("counts.mx",row.names=1,header=TRUE)
+xx <- x[which(rowMeans(x)>10),]
+str(xx)
+dim(xx)
+ss <- as.data.frame(colnames(xx))
+ss$trt <- as.integer(grepl("T",ss[,1]))
+rownames(ss) <- ss[,1]
+ss[,1]=NULL
+ss
+```
+
+## MDS analysis
+
+This will give us an idea about which samples are similar/different.
+
+```{r,mds,fig.height=7,fig.width=7}
+plotMDS(xx, labels=rownames(ss),col=as.integer(as.factor(ss$trt)),main="MDS")
+```
+
+## EdgeR LRT
+
+This was the method that was used in the group when I first got involved in this project.
+
+```{r,edger}
+
+design <- model.matrix(~ss$trt)
+rownames(design) <- rownames(ss)
+z <- DGEList(counts=xx)
+z <- calcNormFactors(z)
+z <- estimateDisp(z, design,robust=TRUE,prior.df=1)
+fit <- glmFit(z, design)
+lrt<-glmLRT(fit)
+dge<-as.data.frame(topTags(lrt,n=Inf))
+dge$dispersion<-lrt$dispersion
+dge<-merge(dge,lrt$fitted.values,by='row.names')
+rownames(dge)=dge$Row.names
+dge$Row.names=NULL
+dge<-dge[order(dge$PValue),]
+head(dge,10)
+dge_edger <- dge
+sig <- subset(dge_edger,FDR<0.05)
+dge_edger_up <- rownames(subset(sig,logFC>0))
+dge_edger_dn <- rownames(subset(sig,logFC<0))
+length(dge_edger_up)
+length(dge_edger_dn)
+
+```
+
+## EdgeR QL
+
+This is a "new" edgeR method which is more conservative.
+
+```{r,edgerql}
+
+design <- model.matrix(~ss$trt)
+rownames(design) <- rownames(ss)
+z <- DGEList(counts=xx)
+z <- calcNormFactors(z)
+z <- estimateDisp(z, design,robust=TRUE,prior.df=1)
+fit <- glmQLFit(z, design)
+lrt <- glmQLFTest(fit)
+dge<-as.data.frame(topTags(lrt,n=Inf))
+dge$dispersion<-lrt$dispersion
+dge<-merge(dge,lrt$fitted.values,by='row.names')
+rownames(dge)=dge$Row.names
+dge$Row.names=NULL
+dge<-dge[order(dge$PValue),]
+head(dge,10)
+dge_edgerql <- dge
+sig <- subset(dge_edgerql,FDR<0.05)
+dge_edgerql_up <- rownames(subset(sig,logFC>0))
+dge_edgerql_dn <- rownames(subset(sig,logFC<0))
+length(dge_edgerql_up)
+length(dge_edgerql_dn)
+
+```
+
+## DESeq2
+
+This is the method that I prefer using these days.
+
+```{r,deseq2}
+
+dds <- DESeqDataSetFromMatrix(countData = xx , colData = ss, design = ~ trt )
+res <- DESeq(dds)
+z<- results(res)
+vsd <- vst(dds, blind=FALSE)
+zz<-cbind(as.data.frame(z),assay(vsd))
+dge<-as.data.frame(zz[order(zz$pvalue),])
+head(dge,10)
+dge_deseq2 <- dge
+sig <- subset(dge,padj<0.05)
+dge_deseq2_up <- rownames(subset(sig,log2FoldChange>0))
+dge_deseq2_dn <- rownames(subset(sig,log2FoldChange<0))
+length(dge_deseq2_up)
+length(dge_deseq2_dn)
+
+```
+
+
+
+## Voom/Limma
+
+This was suggested to me.
+
+```{r,voom}
+
+design <- model.matrix(~ss$trt)
+v <- voom(xx, design, plot=TRUE)
+vfit <- lmFit(v, design)
+efit <- eBayes(vfit)
+dge <- topTable(efit,n=Inf)
+dge_voom <- dge
+sig <- subset(dge_voom,adj.P.Val<0.05)
+dge_voom_up <- rownames(subset(sig,logFC>0))
+dge_voom_dn <- rownames(subset(sig,logFC<0))
+length(dge_voom_up)
+length(dge_voom_dn)
+
+```
+
+# Venn diagram
+
+With the "eulerr" project.
+
+```{r,venn}
+
+v1 <- list("edgeR up"=dge_edger_up, "edgeR dn"=dge_edger_dn,
+  "DESeq2 up"=dge_deseq2_up,"DESeq2 dn"=dge_deseq2_dn)
+plot(euler(v1),quantities = TRUE)
+
+v1 <- list("edgeR up"=dge_edger_up, "edgeR dn"=dge_edger_dn,
+  "DESeq2 up"=dge_deseq2_up,"DESeq2 dn"=dge_deseq2_dn,
+  "edgeR_QL up"=dge_edgerql_up, "edgeR_QL dn"=dge_edgerql_dn)
+plot(euler(v1),quantities = TRUE)
+
+v1 <- list("edgeR up"=dge_edger_up, "edgeR dn"=dge_edger_dn,
+  "DESeq2 up"=dge_deseq2_up,"DESeq2 dn"=dge_deseq2_dn,
+  "Voom up"=dge_voom_up, "Voom dn"=dge_voom_dn)
+plot(euler(v1),quantities = TRUE)
+
+```
+
+## Session information
+
+```{r,session}
+sessionInfo()
+```
+
