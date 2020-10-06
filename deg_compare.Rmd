@@ -22,6 +22,8 @@ View result: http://118.138.234.73/public/blog/deg_compare.html
 library("edgeR")
 library("DESeq2")
 library("eulerr")
+library("UpSetR")
+
 ```
 
 ## Input data
@@ -138,10 +140,11 @@ This was suggested to me.
 ```{r,voom}
 
 design <- model.matrix(~ss$trt)
-v <- voom(xx, design, plot=TRUE)
+v <- voom(xx, design, plot=FALSE)
 vfit <- lmFit(v, design)
 efit <- eBayes(vfit)
 dge <- topTable(efit,n=Inf)
+head(dge,10)
 dge_voom <- dge
 sig <- subset(dge_voom,adj.P.Val<0.05)
 dge_voom_up <- rownames(subset(sig,logFC>0))
@@ -170,6 +173,27 @@ v1 <- list("edgeR up"=dge_edger_up, "edgeR dn"=dge_edger_dn,
   "DESeq2 up"=dge_deseq2_up,"DESeq2 dn"=dge_deseq2_dn,
   "Voom up"=dge_voom_up, "Voom dn"=dge_voom_dn)
 plot(euler(v1),quantities = TRUE)
+
+```
+
+# Upset plot
+
+This should demonstrate the overlaps between different sets better.
+
+```{r,upset}
+v1 <- list("edgeR up"=dge_edger_up, 
+  "DESeq2 up"=dge_deseq2_up,
+  "Voom up"=dge_voom_up, 
+  "edgeR_QL up"=dge_edgerql_up)
+
+upset(fromList(v1), order.by = "freq")
+
+v1 <- list("edgeR dn"=dge_edger_dn,
+  "DESeq2 dn"=dge_deseq2_dn,
+  "Voom dn"=dge_voom_dn,
+  "edgeR_QL dn"=dge_edgerql_dn)
+
+upset(fromList(v1), order.by = "freq")
 
 ```
 
