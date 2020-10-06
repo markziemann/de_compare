@@ -12,6 +12,10 @@ theme: cosmo
 
 Here the purpose is to demonstrate how the choice of DE tool can impact the results of a study.
 
+Source code: Source code: https://github.com/markziemann/de_compare
+
+View result: http://118.138.234.73/public/blog/deg_compare.html
+
 ## Libraries
 
 ```{r,libs}
