@@ -19,11 +19,12 @@ View result: http://118.138.234.73/public/blog/deg_compare.html
 ## Libraries
 
 ```{r,libs}
-library("edgeR")
-library("DESeq2")
-library("eulerr")
-library("UpSetR")
-
+suppressPackageStartupMessages({
+  library("edgeR")
+  library("DESeq2")
+  library("eulerr")
+  library("UpSetR")
+})  
 ```
 
 ## Input data
@@ -196,6 +197,33 @@ v1 <- list("edgeR dn"=dge_edger_dn,
 upset(fromList(v1), order.by = "freq")
 
 ```
+
+## Barplots
+
+Some genes that are significant with edgeR but not DESeq2.
+
+```{r,barplots,fig.height=8,fig.width=8}
+
+xxx <- xx/colSums(xx)*1e6
+par(mfrow=c(3,3))
+mysample <- sample(setdiff( dge_edger_dn , dge_deseq2_dn),9)
+lapply(mysample,function(x) { 
+  vec <- xxx[which(rownames(xxx) %in% x ),]
+  barplot(t(vec)[,1])
+  mtext(x) 
+})
+
+
+par(mfrow=c(3,3))
+mysample <- sample(setdiff( dge_edger_up , dge_deseq2_up),9)
+lapply(mysample,function(x) { 
+  vec <- xxx[which(rownames(xxx) %in% x ),]
+  barplot(t(vec)[,1])
+  mtext(x) 
+})
+
+```
+
 
 ## Session information
 
